@@ -86,8 +86,8 @@ jobs:
           cp "nl-host/target/${{ matrix.target }}/release/${{ matrix.nl_host_bin }}" "nl-launcher/src-tauri/binaries/nl-host-${{ matrix.target }}${{ matrix.ext }}"
           
           # Run fetch script for specific platform
-          chmod +x scripts/fetch-binaries.sh
-          ./scripts/fetch-binaries.sh ${{ matrix.short_os }}
+          chmod +x nl-launcher/scripts/fetch-binaries.sh
+          ./nl-launcher/scripts/fetch-binaries.sh ${{ matrix.short_os }}
           
           echo "Listing binaries for verification:"
           ls -lh nl-launcher/src-tauri/binaries/
