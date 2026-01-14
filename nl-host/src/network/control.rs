@@ -1,12 +1,16 @@
 use anyhow::Result;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
-use std::thread;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread::{self, JoinHandle};
 
 /// ControlClient for sending commands to nl-android.
 pub struct ControlClient {
     input_stream: TcpStream,
     rpc_stream: TcpStream,
+    drain_running: Arc<AtomicBool>,
+    drain_handle: Option<JoinHandle<()>>,
 }
 
 impl ControlClient {
@@ -23,15 +27,28 @@ impl ControlClient {
         let input_stream = TcpStream::connect(format!("{}:{}", host, port))?;
         input_stream.set_nodelay(true)?;
 
+        let drain_running = Arc::new(AtomicBool::new(true));
+        let drain_running_clone = drain_running.clone();
         let drain_stream = input_stream.try_clone()?;
-        thread::spawn(move || {
+        drain_stream.set_read_timeout(Some(std::time::Duration::from_millis(500)))?;
+
+        let drain_handle = thread::spawn(move || {
             let mut reader = BufReader::new(drain_stream);
             let mut buf = String::new();
-            loop {
+            while drain_running_clone.load(Ordering::SeqCst) {
                 buf.clear();
                 // Read and discard output to keep window open
-                if reader.read_line(&mut buf).is_err() || buf.is_empty() {
-                    break; // Socket closed
+                match reader.read_line(&mut buf) {
+                    Ok(0) => break, // EOF
+                    Ok(_) => {}     // Discard
+                    Err(e) => {
+                        if e.kind() == std::io::ErrorKind::TimedOut
+                            || e.kind() == std::io::ErrorKind::WouldBlock
+                        {
+                            continue; // Timeout, check running flag
+                        }
+                        break; // Other error
+                    }
                 }
             }
         });
@@ -45,6 +62,8 @@ impl ControlClient {
         Ok(Self {
             input_stream,
             rpc_stream,
+            drain_running,
+            drain_handle: Some(drain_handle),
         })
     }
 
@@ -144,5 +163,21 @@ impl ControlClient {
         let mut response = String::new();
         reader.read_line(&mut response)?;
         Ok(response)
+    }
+}
+
+impl Drop for ControlClient {
+    fn drop(&mut self) {
+        // Signal drain thread to stop
+        self.drain_running.store(false, Ordering::SeqCst);
+
+        // Shutdown streams to unblock any blocking reads
+        let _ = self.input_stream.shutdown(std::net::Shutdown::Both);
+        let _ = self.rpc_stream.shutdown(std::net::Shutdown::Both);
+
+        // Wait for drain thread to finish
+        if let Some(handle) = self.drain_handle.take() {
+            let _ = handle.join();
+        }
     }
 }

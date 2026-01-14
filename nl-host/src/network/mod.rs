@@ -4,4 +4,4 @@ mod control;
 pub mod stream;
 
 pub use control::ControlClient;
-pub use stream::start_video_receiver;
+pub use stream::{start_video_receiver, VideoReceiverHandle};

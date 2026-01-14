@@ -4,7 +4,32 @@ use crate::log_verbose;
 use crossbeam_channel::Sender;
 use std::io::{Read, Write};
 use std::net::TcpStream;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread::{self, JoinHandle};
+
+/// Handle for controlling the video receiver thread
+pub struct VideoReceiverHandle {
+    running: Arc<AtomicBool>,
+    handle: Option<JoinHandle<()>>,
+}
+
+impl VideoReceiverHandle {
+    /// Signal the receiver to stop
+    pub fn stop(&self) {
+        self.running.store(false, Ordering::SeqCst);
+    }
+}
+
+impl Drop for VideoReceiverHandle {
+    fn drop(&mut self) {
+        self.stop();
+        if let Some(handle) = self.handle.take() {
+            // Give the thread a moment to finish
+            let _ = handle.join();
+        }
+    }
+}
 
 /// Start the video receiver thread that connects to Android and sends data to decoder
 pub fn start_video_receiver(
@@ -13,11 +38,14 @@ pub fn start_video_receiver(
     bitrate: u32,
     max_size: u32,
     tx: Sender<Vec<u8>>,
-) -> JoinHandle<()> {
-    thread::spawn(move || {
+) -> VideoReceiverHandle {
+    let running = Arc::new(AtomicBool::new(true));
+    let running_clone = running.clone();
+
+    let handle = thread::spawn(move || {
         let mut reconnect_delay = 1;
 
-        loop {
+        while running_clone.load(Ordering::SeqCst) {
             log_verbose!("NET", "Connecting {}:{}...", host, port);
             match TcpStream::connect(format!("{}:{}", host, port)) {
                 Ok(mut stream) => {
@@ -37,25 +65,45 @@ pub fn start_video_receiver(
                     let _ = stream.flush();
 
                     reconnect_delay = 1;
-                    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(120)));
+                    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
                     let _ = stream.set_nodelay(true);
 
-                    if let Err(_) = receive_packets(&mut stream, &tx) {
+                    if let Err(_) = receive_packets(&mut stream, &tx, &running_clone) {
                         // Connection lost, will reconnect
                     }
                 }
                 Err(e) => log_verbose!("NET", "Connect failed: {}", e),
             }
 
+            if !running_clone.load(Ordering::SeqCst) {
+                break;
+            }
+
             log_verbose!("NET", "Reconnecting in {}s...", reconnect_delay);
-            thread::sleep(std::time::Duration::from_secs(reconnect_delay));
+            // Sleep in small increments to allow early exit
+            for _ in 0..(reconnect_delay * 10) {
+                if !running_clone.load(Ordering::SeqCst) {
+                    return;
+                }
+                thread::sleep(std::time::Duration::from_millis(100));
+            }
             reconnect_delay = (reconnect_delay * 2).min(10);
         }
-    })
+        log_verbose!("NET", "Video receiver stopped");
+    });
+
+    VideoReceiverHandle {
+        running,
+        handle: Some(handle),
+    }
 }
 
 /// Read packets from stream and send to decoder channel
-fn receive_packets(stream: &mut TcpStream, tx: &Sender<Vec<u8>>) -> Result<(), ()> {
+fn receive_packets(
+    stream: &mut TcpStream,
+    tx: &Sender<Vec<u8>>,
+    running: &Arc<AtomicBool>,
+) -> Result<(), ()> {
     let mut total = 0u64;
     let start = std::time::Instant::now();
     let mut last_log = std::time::Instant::now();
@@ -63,7 +111,7 @@ fn receive_packets(stream: &mut TcpStream, tx: &Sender<Vec<u8>>) -> Result<(), (
     let mut header_buf = [0u8; 12];
     let mut read_count = 0u64;
 
-    loop {
+    while running.load(Ordering::SeqCst) {
         read_count += 1;
 
         // Read 12-byte Header
@@ -113,7 +161,9 @@ fn receive_packets(stream: &mut TcpStream, tx: &Sender<Vec<u8>>) -> Result<(), (
                 }
             }
             Err(e) => {
-                if e.kind() == std::io::ErrorKind::TimedOut {
+                if e.kind() == std::io::ErrorKind::TimedOut
+                    || e.kind() == std::io::ErrorKind::WouldBlock
+                {
                     consecutive_timeouts += 1;
                     if consecutive_timeouts > 10 {
                         return Err(());
@@ -142,4 +192,5 @@ fn receive_packets(stream: &mut TcpStream, tx: &Sender<Vec<u8>>) -> Result<(), (
             last_log = std::time::Instant::now();
         }
     }
+    Ok(())
 }
