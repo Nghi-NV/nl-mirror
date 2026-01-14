@@ -2,7 +2,7 @@
 
 use crate::core::{FrameBuffer, FrameData};
 use crate::input::{map_keycode, start_input_thread, InputCommand};
-use crate::network::start_video_receiver;
+use crate::network::{start_video_receiver, VideoReceiverHandle};
 use crate::utils::save_screenshot_yuv;
 use crate::video::{start_decoder_thread, MirrorRenderer};
 use crate::{log_debug, log_error, log_info, log_verbose};
@@ -38,6 +38,8 @@ pub struct MirrorApp {
     pub shift_pressed: bool,
     // Store the last rendered frame for screenshots
     pub last_frame: Arc<Mutex<Option<FrameData>>>,
+    // Video receiver handle to keep thread alive
+    pub video_receiver: Option<VideoReceiverHandle>,
 }
 
 impl MirrorApp {
@@ -71,6 +73,7 @@ impl MirrorApp {
             cmd_pressed: false,
             shift_pressed: false,
             last_frame: Arc::new(Mutex::new(None)),
+            video_receiver: None,
         }
     }
 
@@ -228,13 +231,13 @@ impl ApplicationHandler for MirrorApp {
         start_decoder_thread(rx, self.frame_buffer.clone());
 
         // Network Receiver Thread
-        start_video_receiver(
+        self.video_receiver = Some(start_video_receiver(
             self.host.clone(),
             self.port,
             self.bitrate,
             self.max_size,
             tx,
-        );
+        ));
     }
 
     fn window_event(

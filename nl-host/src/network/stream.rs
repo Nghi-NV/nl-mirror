@@ -65,7 +65,7 @@ pub fn start_video_receiver(
                     let _ = stream.flush();
 
                     reconnect_delay = 1;
-                    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
+                    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(30)));
                     let _ = stream.set_nodelay(true);
 
                     if let Err(_) = receive_packets(&mut stream, &tx, &running_clone) {
