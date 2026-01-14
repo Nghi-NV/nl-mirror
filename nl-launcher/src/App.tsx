@@ -1,6 +1,7 @@
 import { MonitorPlay } from "lucide-react";
 import { useState } from "react";
 import "./App.css";
+import { ApkDropZone } from "./components/ApkDropZone";
 import { DeviceList } from "./components/DeviceList";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import { MirrorControls } from "./components/MirrorControls";
@@ -16,6 +17,9 @@ function App() {
 
   return (
     <div className="app-container">
+      {/* APK Drag & Drop Overlay */}
+      <ApkDropZone selectedSerial={selectedDevice?.serial || null} />
+
       <header>
         <div className="logo-box">
           <MonitorPlay color="white" size={24} />
