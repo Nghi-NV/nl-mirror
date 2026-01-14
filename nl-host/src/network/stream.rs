@@ -44,12 +44,18 @@ pub fn start_video_receiver(
 
     let handle = thread::spawn(move || {
         let mut reconnect_delay = 1;
+        let mut consecutive_failures = 0;
+        const MAX_RECONNECT_FAILURES: u32 = 3;
 
         while running_clone.load(Ordering::SeqCst) {
             log_verbose!("NET", "Connecting {}:{}...", host, port);
-            match TcpStream::connect(format!("{}:{}", host, port)) {
+            match TcpStream::connect_timeout(
+                &format!("{}:{}", host, port).parse().unwrap(),
+                std::time::Duration::from_secs(5),
+            ) {
                 Ok(mut stream) => {
                     log_verbose!("NET", "Connected");
+                    consecutive_failures = 0; // Reset on successful connect
 
                     // Handshake: Send config
                     log_verbose!(
@@ -70,16 +76,37 @@ pub fn start_video_receiver(
 
                     if let Err(_) = receive_packets(&mut stream, &tx, &running_clone) {
                         // Connection lost, will reconnect
+                        consecutive_failures += 1;
                     }
                 }
-                Err(e) => log_verbose!("NET", "Connect failed: {}", e),
+                Err(e) => {
+                    log_verbose!("NET", "Connect failed: {}", e);
+                    consecutive_failures += 1;
+                }
+            }
+
+            // Exit if too many consecutive failures (device disconnected)
+            if consecutive_failures >= MAX_RECONNECT_FAILURES {
+                log_verbose!(
+                    "NET",
+                    "Too many consecutive failures ({}), device likely disconnected. Exiting.",
+                    consecutive_failures
+                );
+                // Exit the process to notify launcher
+                std::process::exit(1);
             }
 
             if !running_clone.load(Ordering::SeqCst) {
                 break;
             }
 
-            log_verbose!("NET", "Reconnecting in {}s...", reconnect_delay);
+            log_verbose!(
+                "NET",
+                "Reconnecting in {}s... (attempt {}/{})",
+                reconnect_delay,
+                consecutive_failures,
+                MAX_RECONNECT_FAILURES
+            );
             // Sleep in small increments to allow early exit
             for _ in 0..(reconnect_delay * 10) {
                 if !running_clone.load(Ordering::SeqCst) {
