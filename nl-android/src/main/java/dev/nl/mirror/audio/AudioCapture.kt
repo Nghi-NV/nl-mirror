@@ -31,20 +31,37 @@ class AudioCapture {
         }
 
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                recorder = createAudioRecordViaAudioPolicy()
-            } else {
-                recorder = createAudioRecordRemoteSubmix()
-            }
-
-            recorder?.startRecording()
+            var started = false
             
-            if (recorder?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                return true
-            } else {
-                stop()
-                return false
+            // Try AudioPolicy approach first (Android 13+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                try {
+                    recorder = createAudioRecordViaAudioPolicy()
+                    recorder?.startRecording()
+                    if (recorder?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                        started = true
+                    } else {
+                        stop() // Clean up failed recorder
+                    }
+                } catch (_: Exception) {
+                    stop()
+                }
             }
+            
+            // Fallback to RemoteSubmix if AudioPolicy failed
+            if (!started) {
+                recorder = createAudioRecordRemoteSubmix()
+                recorder?.startRecording()
+                
+                if (recorder?.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                    return true
+                } else {
+                    stop()
+                    return false
+                }
+            }
+            
+            return true
         } catch (e: Exception) {
             stop()
             return false

@@ -20,28 +20,55 @@ class ScreenEncoder(
 
     fun start() {
         try {
-            val encoderWidth = ((width + 15) / 16) * 16
-            val encoderHeight = ((height + 15) / 16) * 16
+            var encoderWidth = ((width + 15) / 16) * 16
+            var encoderHeight = ((height + 15) / 16) * 16
+            
+            // Try full resolution first, fallback to 720p if it fails
+            var configured = false
+            var tries = 0
+            
+            while (!configured && tries < 2) {
+                try {
+                    val format = MediaFormat.createVideoFormat("video/avc", encoderWidth, encoderHeight).apply {
+                        setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
+                        setInteger(MediaFormat.KEY_FRAME_RATE, 30)
+                        setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+                        setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000L)
+                        setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
+                        
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            setInteger("prepend-sps-pps-to-idr-frames", 1)
+                        }
+                    }
 
-            val format = MediaFormat.createVideoFormat("video/avc", encoderWidth, encoderHeight).apply {
-                setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
-                setInteger(MediaFormat.KEY_FRAME_RATE, 60)
-                setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
-                setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000L)
-                setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline)
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    setInteger("prepend-sps-pps-to-idr-frames", 1)
+                    codec = MediaCodec.createEncoderByType("video/avc")
+                    codec?.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                    configured = true
+                } catch (e: Exception) {
+                    codec?.release()
+                    codec = null
+                    
+                    // Fallback to 720p compatible resolution calculation
+                    if (tries == 0) {
+                        val targetWidth = 720
+                        // Keep aspect ratio
+                        var targetHeight = (height * targetWidth / width)
+                        // Align to 16
+                        encoderWidth = ((targetWidth + 15) / 16) * 16
+                        encoderHeight = ((targetHeight + 15) / 16) * 16
+                    }
+                    tries++
                 }
             }
-
-            codec = MediaCodec.createEncoderByType("video/avc")
-            codec?.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            
+            if (!configured) {
+                throw RuntimeException("Failed to configure encoder after retries")
+            }
+            
             surface = codec?.createInputSurface()
             codec?.start()
 
+            // Pass the ACTUAL configured resolution to VirtualDisplayFactory
             VirtualDisplayFactory.create("nl-mirror", width, height, encoderWidth, encoderHeight, surface!!)
             TouchScaler.configure(width, height, encoderWidth, encoderHeight)
 
