@@ -1,6 +1,6 @@
 [package]
 name = "nl-mirror"
-version = "0.1.6"
+version = "0.1.9"
 description = "High-fidelity Android Streaming & Control"
 authors = ["nghinv"]
 edition = "2021"

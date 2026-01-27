@@ -14,11 +14,11 @@ use crossbeam_channel::bounded;
 
 /// Start the complete audio pipeline
 pub fn start_audio_pipeline(host: String, port: u16) {
-    // Receiver -> Decoder channel (encoded packets)
-    let (encoded_tx, encoded_rx) = bounded::<AudioPacket>(64);
+    // Receiver -> Decoder channel (ultra-low latency)
+    let (encoded_tx, encoded_rx) = bounded::<AudioPacket>(4);
 
-    // Decoder -> Playback channel (PCM samples)
-    let (pcm_tx, pcm_rx) = bounded::<Vec<f32>>(64);
+    // Decoder -> Playback channel (ultra-low latency)
+    let (pcm_tx, pcm_rx) = bounded::<Vec<f32>>(4);
 
     // Start pipeline threads
     start_audio_receiver(host, port, encoded_tx);

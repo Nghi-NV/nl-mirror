@@ -214,8 +214,8 @@ impl ApplicationHandler for MirrorApp {
         self.current_width = 0;
         self.current_height = 0;
 
-        // Input Thread - larger buffer for fast typing
-        let (input_tx, input_rx) = crossbeam_channel::bounded::<InputCommand>(256);
+        // Input Thread - small buffer for low latency
+        let (input_tx, input_rx) = crossbeam_channel::bounded::<InputCommand>(64);
         self.input_sender = Some(input_tx);
         start_input_thread(self.host.clone(), self.port + 1, input_rx);
 
@@ -225,8 +225,8 @@ impl ApplicationHandler for MirrorApp {
             self.set_screen_power_mode(0);
         }
 
-        // Network -> Decoder Channel (larger buffer for high bitrate)
-        let (tx, rx) = crossbeam_channel::bounded::<Vec<u8>>(256);
+        // Network -> Decoder Channel (minimal buffer for ultra-low latency)
+        let (tx, rx) = crossbeam_channel::bounded::<Vec<u8>>(2);
 
         log_verbose!("APP", "Starting decoder and network threads...");
 

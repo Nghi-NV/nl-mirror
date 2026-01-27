@@ -47,8 +47,15 @@ class ScreenEncoder(
                         setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, (1000_000L / fps))
                         setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
                         
+                        // Low-latency optimizations
+                        setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
+                        setInteger(MediaFormat.KEY_LATENCY, 0) // Request minimum latency
+                        
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                             setInteger("prepend-sps-pps-to-idr-frames", 1)
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            setInteger(MediaFormat.KEY_PRIORITY, 0) // 0 = realtime priority
                         }
                     }
 
@@ -109,7 +116,7 @@ class ScreenEncoder(
 
         while (isRunning) {
             try {
-                val outputBufferId = codec.dequeueOutputBuffer(bufferInfo, 10000)
+                val outputBufferId = codec.dequeueOutputBuffer(bufferInfo, 1000) // 1ms timeout for low latency
                 if (outputBufferId >= 0) {
                     val outputBuffer = codec.getOutputBuffer(outputBufferId)
                     if (outputBuffer != null && bufferInfo.size > 0) {
