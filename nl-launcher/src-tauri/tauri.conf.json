@@ -37,6 +37,11 @@
     "externalBin": [
       "binaries/nl-host",
       "binaries/adb"
-    ]
+    ],
+    "macOS": {
+      "entitlements": "./Entitlements.plist",
+      "signingIdentity": "-",
+      "minimumSystemVersion": "10.15"
+    }
   }
 }
