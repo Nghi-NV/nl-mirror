@@ -9,7 +9,7 @@ object MirrorService {
     private var currentSessionThread: Thread? = null
     private var isSessionRunning = false
 
-    fun startSession(socket: Socket, bitrate: Int, maxResolution: Int) {
+    fun startSession(socket: Socket, bitrate: Int, maxResolution: Int, frameRate: Int) {
         stopSession()
         isSessionRunning = true
         currentSessionThread = Thread {
@@ -27,7 +27,7 @@ object MirrorService {
                     val width = if (isLandscape) h_phys else w_phys
                     val height = if (isLandscape) w_phys else h_phys
 
-                    encoder = ScreenEncoder(width, height, bitrate, maxResolution, packetWriter)
+                    encoder = ScreenEncoder(width, height, bitrate, maxResolution, frameRate, packetWriter)
                     encoder.start()
                     watcher.resetChangeFlag()
 

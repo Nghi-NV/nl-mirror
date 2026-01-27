@@ -111,6 +111,7 @@ jobs:
             - **Linux**: .deb or .AppImage
           releaseDraft: true
           prerelease: false
+          tauriScript: yarn tauri:ci
           args: ${{ matrix.args }}
           projectPath: './nl-launcher'
 

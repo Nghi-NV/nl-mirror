@@ -18,6 +18,7 @@ pub struct MirrorApp {
     pub port: u16,
     pub bitrate: u32,
     pub max_size: u32,
+    pub frame_rate: u32,
     pub turn_screen_off: bool,
     pub frame_buffer: Arc<FrameBuffer>,
     pub renderer: Option<MirrorRenderer>,
@@ -48,6 +49,7 @@ impl MirrorApp {
         port: u16,
         bitrate: u32,
         max_size: u32,
+        frame_rate: u32,
         turn_screen_off: bool,
     ) -> Self {
         Self {
@@ -55,6 +57,7 @@ impl MirrorApp {
             port,
             bitrate,
             max_size,
+            frame_rate,
             turn_screen_off,
             frame_buffer: Arc::new(FrameBuffer::new()),
             renderer: None,
@@ -236,6 +239,7 @@ impl ApplicationHandler for MirrorApp {
             self.port,
             self.bitrate,
             self.max_size,
+            self.frame_rate,
             tx,
         ));
     }
@@ -548,10 +552,11 @@ pub fn run(
     port: u16,
     bitrate: u32,
     max_size: u32,
+    frame_rate: u32,
     turn_screen_off: bool,
 ) -> anyhow::Result<()> {
     let event_loop = winit::event_loop::EventLoop::new()?;
-    let mut app = MirrorApp::new(host, port, bitrate, max_size, turn_screen_off);
+    let mut app = MirrorApp::new(host, port, bitrate, max_size, frame_rate, turn_screen_off);
     event_loop.run_app(&mut app)?;
     Ok(())
 }

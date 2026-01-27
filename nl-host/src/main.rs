@@ -24,6 +24,9 @@ enum Commands {
         #[arg(long, default_value_t = 1080)]
         max_size: u32,
 
+        #[arg(long, default_value_t = 30)]
+        frame_rate: u32,
+
         /// Enable verbose logging
         #[arg(short, long)]
         verbose: bool,
@@ -55,6 +58,7 @@ fn main() -> Result<()> {
     match args.command.unwrap_or(Commands::Mirror {
         bitrate: 8000000,
         max_size: 1080,
+        frame_rate: 30,
         verbose: false,
         turn_screen_off: false,
         audio: true,
@@ -76,6 +80,7 @@ fn main() -> Result<()> {
         Commands::Mirror {
             bitrate,
             max_size,
+            frame_rate,
             verbose,
             turn_screen_off,
             audio: enable_audio,
@@ -90,7 +95,14 @@ fn main() -> Result<()> {
                 audio::start_audio_pipeline(args.host.clone(), args.port + 2);
             }
 
-            core::run(args.host, args.port, bitrate, max_size, turn_screen_off)?;
+            core::run(
+                args.host,
+                args.port,
+                bitrate,
+                max_size,
+                frame_rate,
+                turn_screen_off,
+            )?;
         }
     }
     Ok(())

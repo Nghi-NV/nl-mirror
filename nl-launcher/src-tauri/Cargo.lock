@@ -2863,7 +2863,7 @@ dependencies = [
 
 [[package]]
 name = "nl-mirror"
-version = "0.1.0"
+version = "0.1.6"
 dependencies = [
  "anyhow",
  "arboard",

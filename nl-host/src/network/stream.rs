@@ -37,6 +37,7 @@ pub fn start_video_receiver(
     port: u16,
     bitrate: u32,
     max_size: u32,
+    frame_rate: u32,
     tx: Sender<Vec<u8>>,
 ) -> VideoReceiverHandle {
     let running = Arc::new(AtomicBool::new(true));
@@ -60,11 +61,15 @@ pub fn start_video_receiver(
                     // Handshake: Send config
                     log_verbose!(
                         "NET",
-                        "Sending config: bitrate={}, max_size={}",
+                        "Sending config: bitrate={}, max_size={}, frame_rate={}",
                         bitrate,
-                        max_size
+                        max_size,
+                        frame_rate
                     );
-                    let handshake = format!("bitrate={}&max_size={}\n", bitrate, max_size);
+                    let handshake = format!(
+                        "bitrate={}&max_size={}&frame_rate={}\n",
+                        bitrate, max_size, frame_rate
+                    );
                     if let Err(e) = stream.write_all(handshake.as_bytes()) {
                         log_verbose!("NET", "WARNING: Failed to send handshake: {}", e);
                     }

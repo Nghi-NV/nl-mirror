@@ -11,6 +11,7 @@ interface Props {
 export function MirrorControls({ selectedSerial }: Props) {
   const [bitrate, setBitrate] = useState(16000000); // Default 16Mbps
   const [resolution, setResolution] = useState(1080);
+  const [frameRate, setFrameRate] = useState(30); // Default 30fps
   const [isStarting, setIsStarting] = useState(false);
   const [status, setStatus] = useState<{ msg: string, type: 'info' | 'success' | 'error' } | null>(null);
   const [connectionMode, setConnectionMode] = useState<'usb' | 'wifi'>('usb');
@@ -112,6 +113,7 @@ export function MirrorControls({ selectedSerial }: Props) {
         serial: target,
         bitrate: bitrate,
         maxSize: resolution,
+        frameRate: frameRate,
         turnScreenOff: turnScreenOff
       });
     } catch (e) {
@@ -211,6 +213,21 @@ export function MirrorControls({ selectedSerial }: Props) {
               { value: 8000000, label: "8 Mbps" },
               { value: 16000000, label: "16 Mbps" },
               { value: 20000000, label: "20 Mbps" }
+            ]}
+          />
+        </div>
+
+        <div className="form-group">
+          <label>Frame Rate</label>
+          <CustomSelect
+            value={frameRate}
+            onChange={(v) => setFrameRate(Number(v))}
+            options={[
+              { value: 15, label: "15 fps" },
+              { value: 20, label: "20 fps" },
+              { value: 24, label: "24 fps" },
+              { value: 30, label: "30 fps (Rec)" },
+              { value: 60, label: "60 fps" }
             ]}
           />
         </div>

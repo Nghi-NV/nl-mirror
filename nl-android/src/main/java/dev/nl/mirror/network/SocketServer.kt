@@ -33,6 +33,7 @@ class SocketServer(private val port: Int) {
 
                 var bitrate = 8_000_000
                 var maxResolution = 1080
+                var frameRate = 30
                 try {
                     socket.soTimeout = 500
                     val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
@@ -45,6 +46,7 @@ class SocketServer(private val port: Int) {
                                 when(kv[0]) {
                                     "bitrate" -> bitrate = kv[1].toIntOrNull() ?: bitrate
                                     "max_size" -> maxResolution = kv[1].toIntOrNull() ?: maxResolution
+                                    "frame_rate" -> frameRate = kv[1].toIntOrNull() ?: frameRate
                                 }
                             }
                         }
@@ -53,7 +55,7 @@ class SocketServer(private val port: Int) {
                 } catch (_: Exception) {
                     socket.soTimeout = 0
                 }
-                MirrorService.startSession(socket, bitrate, maxResolution)
+                MirrorService.startSession(socket, bitrate, maxResolution, frameRate)
             } catch (_: Exception) {
                 try { socket.close() } catch (_: Exception) {}
             }

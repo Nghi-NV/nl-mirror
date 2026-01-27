@@ -20,6 +20,7 @@ pub async fn start_mirror(
     _serial: String,
     bitrate: u32,
     max_size: u32,
+    frame_rate: u32,
     turn_screen_off: bool,
 ) -> Result<(), String> {
     // 1. Invalidate previous session and cleanup
@@ -55,6 +56,7 @@ pub async fn start_mirror(
         "mirror".to_string(),
         "--bitrate".to_string(), bitrate.to_string(),
         "--max-size".to_string(), max_size.to_string(),
+        "--frame-rate".to_string(), frame_rate.to_string(),
         "--audio".to_string(),
     ];
 

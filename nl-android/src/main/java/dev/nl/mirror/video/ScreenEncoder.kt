@@ -13,6 +13,7 @@ class ScreenEncoder(
     private val screenHeight: Int,
     private val bitrate: Int,
     private val maxResolution: Int,
+    private val frameRate: Int,
     private val packetWriter: PacketWriter
 ) {
     private var codec: MediaCodec? = null
@@ -30,6 +31,9 @@ class ScreenEncoder(
             var encoderWidth = ((targetWidth + 15) / 16) * 16
             var encoderHeight = ((targetHeight + 15) / 16) * 16
             
+            // Clamp frame rate to valid range (10-60)
+            val fps = frameRate.coerceIn(10, 60)
+            
             // Try configured resolution first, fallback to 720p if it fails
             var configured = false
             var tries = 0
@@ -38,9 +42,9 @@ class ScreenEncoder(
                 try {
                     val format = MediaFormat.createVideoFormat("video/avc", encoderWidth, encoderHeight).apply {
                         setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
-                        setInteger(MediaFormat.KEY_FRAME_RATE, 30)
+                        setInteger(MediaFormat.KEY_FRAME_RATE, fps)
                         setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
-                        setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000L)
+                        setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, (1000_000L / fps))
                         setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
                         
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {

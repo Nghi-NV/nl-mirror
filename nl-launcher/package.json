@@ -10,6 +10,7 @@
     "buildMacArm64": "sh scripts/update-binaries.sh && tauri build --target aarch64-apple-darwin",
     "preview": "vite preview",
     "tauri": "sh scripts/update-binaries.sh && tauri",
+    "tauri:ci": "tauri",
     "release": "node ../scripts/release.js",
     "clean:android": "cd ../nl-android && ./gradlew clean && rm -f ../nl-launcher/src-tauri/binaries/nl-mirror.apk",
     "clean:host": "cd ../nl-host && cargo clean && rm -f ../nl-launcher/src-tauri/binaries/nl-host-*",
