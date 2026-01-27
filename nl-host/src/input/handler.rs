@@ -22,7 +22,7 @@ pub enum InputCommand {
 pub fn start_input_thread(host: String, port: u16, rx: Receiver<InputCommand>) -> JoinHandle<()> {
     thread::spawn(move || {
         let mut client = {
-            let mut delay_ms = 500u64;
+            let mut delay_ms = 100u64; // Start with shorter delay for faster initial connection
             loop {
                 match ControlClient::connect(&host, port) {
                     Ok(c) => {
@@ -39,8 +39,8 @@ pub fn start_input_thread(host: String, port: u16, rx: Receiver<InputCommand>) -
                             delay_ms
                         );
                         std::thread::sleep(std::time::Duration::from_millis(delay_ms));
-                        // Exponential backoff: 500ms -> 1s -> 2s -> 4s -> 5s (max)
-                        delay_ms = (delay_ms * 2).min(5000);
+                        // Exponential backoff: 100ms -> 200ms -> 400ms -> 800ms -> 1600ms -> 2000ms (max)
+                        delay_ms = (delay_ms * 2).min(2000);
                     }
                 }
             }

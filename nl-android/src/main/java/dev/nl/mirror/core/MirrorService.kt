@@ -26,11 +26,8 @@ object MirrorService {
                     val isLandscape = (rotation == 1 || rotation == 3)
                     val width = if (isLandscape) h_phys else w_phys
                     val height = if (isLandscape) w_phys else h_phys
-                    val scale = if (width > maxResolution) maxResolution.toFloat() / width else 1.0f
-                    val encW = (width * scale).toInt()
-                    val encH = (height * scale).toInt()
 
-                    encoder = ScreenEncoder(width, height, bitrate, packetWriter)
+                    encoder = ScreenEncoder(width, height, bitrate, maxResolution, packetWriter)
                     encoder.start()
                     watcher.resetChangeFlag()
 

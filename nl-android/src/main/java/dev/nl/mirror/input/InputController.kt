@@ -30,7 +30,7 @@ object InputController {
     fun init(): Boolean {
         if (isInitialized) return true
         
-        repeat(3) { attempt ->
+        repeat(5) {
             try {
                 val imClass = Class.forName("android.hardware.input.InputManager")
                 val getInstance = imClass.getMethod("getInstance")
@@ -42,7 +42,7 @@ object InputController {
                 )
                 isInitialized = true
                 return true
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 Thread.sleep(100)
             }
         }

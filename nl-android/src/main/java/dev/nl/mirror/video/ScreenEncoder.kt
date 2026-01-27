@@ -9,9 +9,10 @@ import dev.nl.mirror.input.TouchScaler
 import dev.nl.mirror.network.PacketWriter
 
 class ScreenEncoder(
-    private val width: Int,
-    private val height: Int,
+    private val screenWidth: Int,
+    private val screenHeight: Int,
     private val bitrate: Int,
+    private val maxResolution: Int,
     private val packetWriter: PacketWriter
 ) {
     private var codec: MediaCodec? = null
@@ -20,10 +21,16 @@ class ScreenEncoder(
 
     fun start() {
         try {
-            var encoderWidth = ((width + 15) / 16) * 16
-            var encoderHeight = ((height + 15) / 16) * 16
+            // Calculate target resolution based on maxResolution
+            val scale = if (screenWidth > maxResolution) maxResolution.toFloat() / screenWidth else 1.0f
+            val targetWidth = (screenWidth * scale).toInt()
+            val targetHeight = (screenHeight * scale).toInt()
             
-            // Try full resolution first, fallback to 720p if it fails
+            // Align to 16 for encoder compatibility
+            var encoderWidth = ((targetWidth + 15) / 16) * 16
+            var encoderHeight = ((targetHeight + 15) / 16) * 16
+            
+            // Try configured resolution first, fallback to 720p if it fails
             var configured = false
             var tries = 0
             
@@ -50,12 +57,12 @@ class ScreenEncoder(
                     
                     // Fallback to 720p compatible resolution calculation
                     if (tries == 0) {
-                        val targetWidth = 720
+                        val fallbackWidth = 720
                         // Keep aspect ratio
-                        var targetHeight = (height * targetWidth / width)
+                        val fallbackHeight = (screenHeight * fallbackWidth / screenWidth)
                         // Align to 16
-                        encoderWidth = ((targetWidth + 15) / 16) * 16
-                        encoderHeight = ((targetHeight + 15) / 16) * 16
+                        encoderWidth = ((fallbackWidth + 15) / 16) * 16
+                        encoderHeight = ((fallbackHeight + 15) / 16) * 16
                     }
                     tries++
                 }
@@ -68,9 +75,9 @@ class ScreenEncoder(
             surface = codec?.createInputSurface()
             codec?.start()
 
-            // Pass the ACTUAL configured resolution to VirtualDisplayFactory
-            VirtualDisplayFactory.create("nl-mirror", width, height, encoderWidth, encoderHeight, surface!!)
-            TouchScaler.configure(width, height, encoderWidth, encoderHeight)
+            // Pass screen dimensions and encoder dimensions to VirtualDisplayFactory
+            VirtualDisplayFactory.create("nl-mirror", screenWidth, screenHeight, encoderWidth, encoderHeight, surface!!)
+            TouchScaler.configure(screenWidth, screenHeight, encoderWidth, encoderHeight)
 
             isRunning = true
             Thread { startEncodingLoop() }.start()
