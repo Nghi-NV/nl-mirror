@@ -11,6 +11,7 @@ class AudioServer(private val port: Int = 8890) {
     private var serverSocket: ServerSocket? = null
     private var isRunning = false
     private var currentEncoder: AudioEncoder? = null
+    private var currentCapture: AudioCapture? = null
 
     fun start() {
         Thread({
@@ -34,6 +35,7 @@ class AudioServer(private val port: Int = 8890) {
     fun stop() {
         isRunning = false
         currentEncoder?.stop()
+        currentCapture?.stop()
         try { serverSocket?.close() } catch (_: Exception) {}
     }
 
@@ -41,12 +43,16 @@ class AudioServer(private val port: Int = 8890) {
         Thread({
             // Stop previous encoder if exists
             currentEncoder?.stop()
+            currentCapture?.stop()
             
+            var capture: AudioCapture? = null
             try {
                 socket.tcpNoDelay = true
                 socket.sendBufferSize = 64 * 1024
+                socket.soTimeout = 5000 // 5 second timeout for detecting disconnect
                 
-                val capture = AudioCapture()
+                capture = AudioCapture()
+                currentCapture = capture
                 
                 if (!capture.checkCompatibility()) {
                     socket.close()
@@ -61,14 +67,29 @@ class AudioServer(private val port: Int = 8890) {
                     return@Thread
                 }
                 
-                // Keep connection alive until socket closes
+                // Monitor connection by reading from socket
+                val inputStream = socket.getInputStream()
+                val buffer = ByteArray(1)
                 while (!socket.isClosed && isRunning) {
-                    Thread.sleep(1000)
+                    try {
+                        val bytesRead = inputStream.read(buffer)
+                        if (bytesRead == -1) {
+                            // Client disconnected
+                            break
+                        }
+                    } catch (_: java.net.SocketTimeoutException) {
+                        // Timeout is expected, continue checking
+                        continue
+                    } catch (_: Exception) {
+                        break
+                    }
                 }
             } catch (_: Exception) {
             } finally {
                 currentEncoder?.stop()
                 currentEncoder = null
+                capture?.stop()
+                currentCapture = null
                 try { socket.close() } catch (_: Exception) {}
             }
         }, "audio-client").start()

@@ -10,22 +10,51 @@ import android.view.MotionEvent
  * Uses reflection to access InputManager.injectInputEvent() for low-latency control.
  */
 object InputController {
-    private val inputManager: Any by lazy {
-        val imClass = Class.forName("android.hardware.input.InputManager")
-        val getInstance = imClass.getMethod("getInstance")
-        getInstance.invoke(null)
-    }
-
-    private val injectInputEventMethod by lazy {
-        val imClass = Class.forName("android.hardware.input.InputManager")
-        imClass.getMethod("injectInputEvent", android.view.InputEvent::class.java, Int::class.javaPrimitiveType)
-    }
+    @Volatile
+    private var inputManager: Any? = null
+    @Volatile
+    private var injectInputEventMethod: java.lang.reflect.Method? = null
+    @Volatile
+    private var isInitialized = false
 
     private const val INJECT_INPUT_EVENT_MODE_ASYNC = 0
 
     // Track the downTime for each gesture (same downTime must be used for DOWN, MOVE, UP)
     private var lastDownTime: Long = 0L
     private var isPointerDown: Boolean = false
+
+    /**
+     * Initialize the InputController. Should be called during app startup.
+     */
+    @Synchronized
+    fun init(): Boolean {
+        if (isInitialized) return true
+        
+        repeat(3) { attempt ->
+            try {
+                val imClass = Class.forName("android.hardware.input.InputManager")
+                val getInstance = imClass.getMethod("getInstance")
+                inputManager = getInstance.invoke(null)
+                injectInputEventMethod = imClass.getMethod(
+                    "injectInputEvent",
+                    android.view.InputEvent::class.java,
+                    Int::class.javaPrimitiveType
+                )
+                isInitialized = true
+                return true
+            } catch (e: Exception) {
+                Thread.sleep(100)
+            }
+        }
+        return false
+    }
+
+    private fun ensureInitialized(): Boolean {
+        if (!isInitialized) {
+            init()
+        }
+        return isInitialized
+    }
 
     /**
      * Injects a touch event at the specified coordinates.
@@ -137,8 +166,12 @@ object InputController {
     }
 
     private fun injectEvent(event: android.view.InputEvent): Boolean {
+        if (!ensureInitialized()) return false
+        val manager = inputManager ?: return false
+        val method = injectInputEventMethod ?: return false
+        
         return try {
-            injectInputEventMethod.invoke(inputManager, event, INJECT_INPUT_EVENT_MODE_ASYNC) as Boolean
+            method.invoke(manager, event, INJECT_INPUT_EVENT_MODE_ASYNC) as Boolean
         } catch (e: Exception) {
             e.printStackTrace()
             false

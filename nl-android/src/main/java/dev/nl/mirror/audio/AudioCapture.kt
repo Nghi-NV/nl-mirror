@@ -149,7 +149,7 @@ class AudioCapture {
         mixBuilderClass.getMethod("setFormat", AudioFormat::class.java)
             .invoke(mixBuilder, AudioConfig.createAudioFormat())
 
-        val routeFlag = mixClass.getField("ROUTE_FLAG_LOOP_BACK_RENDER").getInt(null)
+        val routeFlag = mixClass.getField("ROUTE_FLAG_LOOP_BACK").getInt(null)
         mixBuilderClass.getMethod("setRouteFlags", Int::class.javaPrimitiveType)
             .invoke(mixBuilder, routeFlag)
 

@@ -1,6 +1,7 @@
 package dev.nl.mirror.core
 
 import dev.nl.mirror.audio.AudioServer
+import dev.nl.mirror.input.InputController
 import dev.nl.mirror.network.CommandServer
 import dev.nl.mirror.network.SocketServer
 import android.os.Build
@@ -23,6 +24,9 @@ object App {
         
         dev.nl.mirror.util.Workarounds.apply()
         dev.nl.mirror.util.FakeContext.get()
+        
+        // Initialize InputController early to prevent race conditions
+        InputController.init()
         
         try {
             // Video Server (port 8888)
