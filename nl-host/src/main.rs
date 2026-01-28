@@ -56,7 +56,7 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     match args.command.unwrap_or(Commands::Mirror {
-        bitrate: 8000000,
+        bitrate: 16000000,
         max_size: 1080,
         frame_rate: 30,
         verbose: false,

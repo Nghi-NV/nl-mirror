@@ -4,6 +4,7 @@ import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.os.Build
+import android.os.Looper
 import android.view.Surface
 import dev.nl.mirror.input.TouchScaler
 import dev.nl.mirror.network.PacketWriter
@@ -34,28 +35,47 @@ class ScreenEncoder(
             // Clamp frame rate to valid range (10-60)
             val fps = frameRate.coerceIn(10, 60)
             
-            // Try configured resolution first, fallback to 720p if it fails
+            // Try configurations in order: 
+            // 1. High Profile + current resolution
+            // 2. Baseline + current resolution  
+            // 3. Baseline + 720p fallback
             var configured = false
+            var useHighProfile = true
             var tries = 0
             
-            while (!configured && tries < 2) {
+            while (!configured && tries < 3) {
                 try {
                     val format = MediaFormat.createVideoFormat("video/avc", encoderWidth, encoderHeight).apply {
                         setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
-                        setInteger(MediaFormat.KEY_FRAME_RATE, fps)
-                        setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
+                        // Must be present to configure encoder, does not impact actual frame rate (scrcpy uses 60)
+                        setInteger(MediaFormat.KEY_FRAME_RATE, 60)
+                        setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 5)
                         setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, (1000_000L / fps))
                         setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
                         
+                        // Try High Profile for better quality on first attempt
+                        if (useHighProfile && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            try {
+                                setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileHigh)
+                                setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel41)
+                            } catch (e: Exception) {
+                                // Ignore if not supported
+                            }
+                        }
+                        
                         // Low-latency optimizations
                         setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
-                        setInteger(MediaFormat.KEY_LATENCY, 0) // Request minimum latency
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            // KEY_LATENCY only available on Android 11+
+                            setInteger(MediaFormat.KEY_LATENCY, 0)
+                        }
                         
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                             setInteger("prepend-sps-pps-to-idr-frames", 1)
+                            setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED)
                         }
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            setInteger(MediaFormat.KEY_PRIORITY, 0) // 0 = realtime priority
+                            setInteger(MediaFormat.KEY_PRIORITY, 0)
                         }
                     }
 
@@ -66,14 +86,18 @@ class ScreenEncoder(
                     codec?.release()
                     codec = null
                     
-                    // Fallback to 720p compatible resolution calculation
-                    if (tries == 0) {
-                        val fallbackWidth = 720
-                        // Keep aspect ratio
-                        val fallbackHeight = (screenHeight * fallbackWidth / screenWidth)
-                        // Align to 16
-                        encoderWidth = ((fallbackWidth + 15) / 16) * 16
-                        encoderHeight = ((fallbackHeight + 15) / 16) * 16
+                    when (tries) {
+                        0 -> {
+                            // First failure: try without High Profile
+                            useHighProfile = false
+                        }
+                        1 -> {
+                            // Second failure: fallback to 720p
+                            val fallbackWidth = 720
+                            val fallbackHeight = (screenHeight * fallbackWidth / screenWidth)
+                            encoderWidth = ((fallbackWidth + 15) / 16) * 16
+                            encoderHeight = ((fallbackHeight + 15) / 16) * 16
+                        }
                     }
                     tries++
                 }
@@ -91,7 +115,14 @@ class ScreenEncoder(
             TouchScaler.configure(screenWidth, screenHeight, encoderWidth, encoderHeight)
 
             isRunning = true
-            Thread { startEncodingLoop() }.start()
+            Thread {
+                // Prepare Looper to avoid deadlock on some devices (Meizu, Samsung)
+                // See: https://github.com/nicholgl/scrcpy/issues/4467
+                if (Looper.myLooper() == null) {
+                    Looper.prepare()
+                }
+                startEncodingLoop()
+            }.start()
         } catch (e: Exception) {
             stop()
             throw e
@@ -116,7 +147,7 @@ class ScreenEncoder(
 
         while (isRunning) {
             try {
-                val outputBufferId = codec.dequeueOutputBuffer(bufferInfo, 1000) // 1ms timeout for low latency
+                val outputBufferId = codec.dequeueOutputBuffer(bufferInfo, -1) // Blocking for efficiency (scrcpy-style)
                 if (outputBufferId >= 0) {
                     val outputBuffer = codec.getOutputBuffer(outputBufferId)
                     if (outputBuffer != null && bufferInfo.size > 0) {

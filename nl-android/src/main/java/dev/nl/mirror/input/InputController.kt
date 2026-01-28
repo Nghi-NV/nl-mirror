@@ -41,7 +41,7 @@ object InputController {
                     Int::class.javaPrimitiveType
                 )
                 isInitialized = true
-                return true
+                    return true
             } catch (_: Exception) {
                 Thread.sleep(100)
             }
@@ -116,18 +116,37 @@ object InputController {
 
     /**
      * Simulates a swipe from (x1, y1) to (x2, y2).
+     * Uses dynamic steps based on distance for smooth motion.
      */
-    fun swipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long = 100): Boolean {
-        val steps = 5
+    fun swipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long = 300): Boolean {
+        // Calculate distance and determine steps (more distance = more steps)
+        val dx = x2 - x1
+        val dy = y2 - y1
+        val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+        
+        // Dynamic steps: 1 step per 10 pixels, min 10, max 50
+        val steps = (distance / 10).toInt().coerceIn(10, 50)
         val stepDuration = durationMs / steps
-
+        
+        // Use SystemClock for more accurate timing
+        val startTime = android.os.SystemClock.uptimeMillis()
+        
         injectTouch(MotionEvent.ACTION_DOWN, x1, y1)
 
-        for (i in 1..steps) {
+        for (i in 1 until steps) {
             val ratio = i.toFloat() / steps
-            val x = x1 + (x2 - x1) * ratio
-            val y = y1 + (y2 - y1) * ratio
-            Thread.sleep(stepDuration)
+            // Apply ease-out curve for natural feel
+            val easedRatio = 1 - (1 - ratio) * (1 - ratio)
+            val x = x1 + dx * easedRatio
+            val y = y1 + dy * easedRatio
+            
+            // Sleep only if needed to maintain timing
+            val targetTime = startTime + (stepDuration * i)
+            val sleepTime = targetTime - android.os.SystemClock.uptimeMillis()
+            if (sleepTime > 0) {
+                Thread.sleep(sleepTime)
+            }
+            
             injectTouch(MotionEvent.ACTION_MOVE, x, y)
         }
 
@@ -181,18 +200,25 @@ object InputController {
     /**
      * Injects text by generating KeyEvents for each character.
      * Uses KeyCharacterMap to convert characters to key codes.
+     * Uses KeyComposition to decompose accented characters (é → ´e).
      */
     fun injectText(text: String): Boolean {
         return try {
             val keyCharacterMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD)
-            val events = keyCharacterMap.getEvents(text.toCharArray())
             
-            if (events == null || events.isEmpty()) {
-                return false
-            }
-            
-            for (event in events) {
-                if (!injectEvent(event)) return false
+            for (c in text) {
+                // Try to decompose accented characters first
+                val decomposed = KeyComposition.decompose(c)
+                val chars = decomposed?.toCharArray() ?: charArrayOf(c)
+                
+                val events = keyCharacterMap.getEvents(chars)
+                if (events != null) {
+                    for (event in events) {
+                        if (!injectEvent(event)) return false
+                    }
+                }
+                // If events is null, the character cannot be typed (e.g., emoji)
+                // Continue with the next character
             }
             true
         } catch (e: Exception) {

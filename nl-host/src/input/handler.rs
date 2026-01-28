@@ -1,7 +1,6 @@
 //! Input command processing
 
 use crate::network::ControlClient;
-use crate::{log_error, log_verbose};
 use crossbeam_channel::Receiver;
 use std::thread::{self, JoinHandle};
 
@@ -16,6 +15,10 @@ pub enum InputCommand {
     SetClipboard(String, bool),
     InjectText(String), // type text directly
     SetScreenPowerMode(i32),
+    // Continuous touch events
+    TouchDown(f32, f32),
+    TouchMove(f32, f32),
+    TouchUp(f32, f32),
 }
 
 /// Start the input handler thread that processes commands non-blocking
@@ -130,6 +133,21 @@ fn process_command(client: &mut ControlClient, cmd: InputCommand) {
         InputCommand::SetScreenPowerMode(mode) => {
             if let Err(e) = client.set_screen_power_mode(mode) {
                 log_verbose!("INPUT", "Set Power Mode failed: {}", e);
+            }
+        }
+        InputCommand::TouchDown(x, y) => {
+            if let Err(e) = client.touch_down(x, y) {
+                log_verbose!("INPUT", "Touch down failed: {}", e);
+            }
+        }
+        InputCommand::TouchMove(x, y) => {
+            if let Err(e) = client.touch_move(x, y) {
+                log_verbose!("INPUT", "Touch move failed: {}", e);
+            }
+        }
+        InputCommand::TouchUp(x, y) => {
+            if let Err(e) = client.touch_up(x, y) {
+                log_verbose!("INPUT", "Touch up failed: {}", e);
             }
         }
     }

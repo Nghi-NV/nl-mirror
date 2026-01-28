@@ -125,6 +125,25 @@ impl MirrorApp {
         }
     }
 
+    // Continuous touch events (like scrcpy)
+    fn send_touch_down(&mut self, x: f32, y: f32) {
+        if let Some(tx) = &self.input_sender {
+            let _ = tx.try_send(InputCommand::TouchDown(x, y));
+        }
+    }
+
+    fn send_touch_move(&mut self, x: f32, y: f32) {
+        if let Some(tx) = &self.input_sender {
+            let _ = tx.try_send(InputCommand::TouchMove(x, y));
+        }
+    }
+
+    fn send_touch_up(&mut self, x: f32, y: f32) {
+        if let Some(tx) = &self.input_sender {
+            let _ = tx.try_send(InputCommand::TouchUp(x, y));
+        }
+    }
+
     fn get_android_clipboard(&mut self) {
         if let Some(tx) = &self.input_sender {
             // true = request device to inject COPY key before reading
@@ -255,6 +274,16 @@ impl ApplicationHandler for MirrorApp {
                 if size.width > 0 && size.height > 0 {
                     if let Some(r) = &mut self.renderer {
                         let _ = r.resize_surface(size.width, size.height);
+                        // Re-render last frame immediately after resize
+                        if let Ok(guard) = self.last_frame.try_lock() {
+                            if let Some(frame) = guard.as_ref() {
+                                let _ = r.render_yuv_frame(frame);
+                            }
+                        }
+                    }
+                    // Request redraw to ensure UI updates
+                    if let Some(w) = &self.window {
+                        w.request_redraw();
                     }
                 }
             }
@@ -266,6 +295,11 @@ impl ApplicationHandler for MirrorApp {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor_position = Some((position.x, position.y));
+                // Send TouchMove when mouse is pressed and dragging
+                if self.mouse_pressed {
+                    let (vx, vy) = self.window_to_video((position.x, position.y));
+                    self.send_touch_move(vx, vy);
+                }
             }
             WindowEvent::MouseInput {
                 state,
@@ -275,40 +309,19 @@ impl ApplicationHandler for MirrorApp {
                 ElementState::Pressed => {
                     self.mouse_pressed = true;
                     self.drag_start = self.cursor_position;
-                    // Log only when debug is enabled to avoid spam
-                    log_debug!("INPUT", "Mouse down at {:?}", self.cursor_position);
+                    // Send TouchDown immediately
+                    if let Some(pos) = self.cursor_position {
+                        let (vx, vy) = self.window_to_video(pos);
+                        log_debug!("INPUT", "TouchDown at ({:.0}, {:.0})", vx, vy);
+                        self.send_touch_down(vx, vy);
+                    }
                 }
                 ElementState::Released => {
-                    if let (Some(start), Some(end)) = (self.drag_start, self.cursor_position) {
-                        let dx = (end.0 - start.0).abs();
-                        let dy = (end.1 - start.1).abs();
-
-                        log_verbose!(
-                            "INPUT",
-                            "Mouse up: start=({:.0},{:.0}), end=({:.0},{:.0})",
-                            start.0,
-                            start.1,
-                            end.0,
-                            end.1
-                        );
-
-                        let (vx1, vy1) = self.window_to_video(start);
-                        let (vx2, vy2) = self.window_to_video(end);
-
-                        if dx < 5.0 && dy < 5.0 {
-                            log_verbose!("INPUT", "-> TAP at ({:.0}, {:.0})", vx1, vy1);
-                            self.send_tap(vx1, vy1);
-                        } else {
-                            log_verbose!(
-                                "INPUT",
-                                "-> SWIPE from ({:.0},{:.0}) to ({:.0},{:.0})",
-                                vx1,
-                                vy1,
-                                vx2,
-                                vy2
-                            );
-                            self.send_swipe(vx1, vy1, vx2, vy2);
-                        }
+                    // Send TouchUp
+                    if let Some(pos) = self.cursor_position {
+                        let (vx, vy) = self.window_to_video(pos);
+                        log_debug!("INPUT", "TouchUp at ({:.0}, {:.0})", vx, vy);
+                        self.send_touch_up(vx, vy);
                     }
                     self.mouse_pressed = false;
                     self.drag_start = None;

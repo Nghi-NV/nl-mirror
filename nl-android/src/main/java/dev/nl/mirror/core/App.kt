@@ -2,6 +2,7 @@ package dev.nl.mirror.core
 
 import dev.nl.mirror.audio.AudioServer
 import dev.nl.mirror.input.InputController
+import dev.nl.mirror.network.BinaryCommandServer
 import dev.nl.mirror.network.CommandServer
 import dev.nl.mirror.network.SocketServer
 import android.os.Build
@@ -33,9 +34,13 @@ object App {
             val videoServer = SocketServer(8888)
             Thread { videoServer.start() }.start()
             
-            // Command Server (port 8889)
+            // Command Server - JSON (port 8889) - for backward compatibility
             val commandServer = CommandServer(8889)
             commandServer.start()
+            
+            // Binary Command Server (port 8891) - low-latency binary protocol
+            val binaryServer = BinaryCommandServer(8891)
+            binaryServer.start()
             
             // Audio Server (port 8890) - Android 11+ only
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

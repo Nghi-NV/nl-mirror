@@ -132,6 +132,31 @@ impl ControlClient {
         self.send_command_async(&cmd)
     }
 
+    // Continuous touch events (like scrcpy)
+    pub fn touch_down(&mut self, x: f32, y: f32) -> Result<()> {
+        let cmd = format!(
+            r#"{{"cmd": "touch", "action": "down", "x": {}, "y": {}}}"#,
+            x, y
+        );
+        self.send_command_async(&cmd)
+    }
+
+    pub fn touch_move(&mut self, x: f32, y: f32) -> Result<()> {
+        let cmd = format!(
+            r#"{{"cmd": "touch", "action": "move", "x": {}, "y": {}}}"#,
+            x, y
+        );
+        self.send_command_async(&cmd)
+    }
+
+    pub fn touch_up(&mut self, x: f32, y: f32) -> Result<()> {
+        let cmd = format!(
+            r#"{{"cmd": "touch", "action": "up", "x": {}, "y": {}}}"#,
+            x, y
+        );
+        self.send_command_async(&cmd)
+    }
+
     pub fn get_hierarchy(&mut self) -> Result<String> {
         let cmd = r#"{"cmd": "hierarchy"}"#;
         self.send_command_sync(cmd)
